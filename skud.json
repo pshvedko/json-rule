@@ -1,0 +1,50 @@
+{
+  "statuses": [
+    {
+      "id": 1,
+      "all": "good",
+      "status_id": 4
+    },
+    {
+      "id": 2,
+      "all": "better",
+      "status_id": 3
+    },
+    {
+      "id": 3,
+      "all": "best",
+      "status_id": 1
+    }
+  ],
+  "id": {
+    "value": 15
+  },
+  "access_level": "high",
+  "num": {
+    "value": {
+      "all": 15,
+      "status": "ok",
+      "smaller": 10
+    }
+  },
+  "object_array": {
+    "field": "value",
+    "list": [
+      {
+        "id": 1,
+        "all": "good",
+        "status": "ok"
+      },
+      {
+        "id": 2,
+        "all": "better",
+        "status": "ok"
+      },
+      {
+        "id": 3,
+        "all": "best",
+        "status": "ok"
+      }
+    ]
+  }
+}
