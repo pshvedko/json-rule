@@ -10,11 +10,11 @@ import (
 	"github.com/pshvedko/json-rule/jsonpath"
 )
 
-type Replacer struct {
+type Quoter struct {
 	*Builder
 }
 
-func (r Replacer) Write(p []byte) (n int, err error) {
+func (r Quoter) Write(p []byte) (n int, err error) {
 	for _, b := range p {
 		switch b {
 		case '.', '#', ':':
@@ -33,7 +33,7 @@ func (r Replacer) Write(p []byte) (n int, err error) {
 	return
 }
 
-func (r Replacer) Print(format string, a ...interface{}) (int, error) {
+func (r Quoter) Print(format string, a ...interface{}) (int, error) {
 	return fmt.Fprintf(r, format, a...)
 }
 
@@ -46,8 +46,8 @@ func (b *Builder) Print(format string, a ...interface{}) (int, error) {
 	return fmt.Fprintf(b, format, a...)
 }
 
-func (b *Builder) Replacer() Replacer {
-	return Replacer{
+func (b *Builder) Quoter() Quoter {
+	return Quoter{
 		Builder: b,
 	}
 }
@@ -77,16 +77,17 @@ type Operand struct {
 }
 
 func (o Operand) Print(b *Builder) (err error) {
-	var suffix string
-	var prefix string
+	var p, e, q string
 	switch o.Type {
+	//case "int":
+	//	p, e = o.Type+"(", ")"
 	case "string":
-		prefix, suffix = "'", "'"
+		q = "'"
 	}
 	if o.Value != "" {
-		_, err = b.Print("%s%s%s", prefix, o.Value, suffix)
+		_, err = b.Print("%s%s%s%s%s", p, q, o.Value, q, e)
 	} else {
-		_, err = b.Replacer().Print("%s::%s", o.Event, o.Field)
+		_, err = b.Quoter().Print("%s%s::%s%s", p, o.Event, o.Field, e)
 	}
 	return
 }
@@ -174,17 +175,22 @@ func (g Getter) Get(x string) (interface{}, error) {
 	return g(x)
 }
 
-type Condition struct {
-	g *govaluate.EvaluableExpression
-	f map[string]map[string][]string
+type Key struct {
+	e int
+	k []string
 }
 
-func (c Condition) Exec(j map[string]interface{}) (interface{}, error) {
+type Condition struct {
+	g *govaluate.EvaluableExpression
+	f map[string]map[string]Key
+}
+
+func (c Condition) Exec(j ...interface{}) (interface{}, error) {
 	return c.g.Eval(Getter(func(x string) (interface{}, error) {
 		if u := strings.SplitN(x, "::", 2); 2 == len(u) {
 			if f, ok := c.f[u[0]]; ok {
 				if k, ok := f[u[1]]; ok {
-					return jsonpath.Get(j[u[0]], k)
+					return jsonpath.Get(j[k.e], k.k)
 				}
 			}
 		}
@@ -199,25 +205,34 @@ func (c Condition) Variables() []string {
 	return c.g.Vars()
 }
 
+var internalFunctions = map[string]govaluate.ExpressionFunction{
+	"int": func(a ...interface{}) (interface{}, error) {
+		return a[0], nil
+	},
+}
+
 func (r Rule) Condition() (c Condition, err error) {
-	var e string
-	e, err = r.Body.Expression.Build()
+	var x string
+	x, err = r.Body.Expression.Build()
 	if err != nil {
 		return
 	}
-	c.g, err = govaluate.NewEvaluableExpressionWithFunctions(e, map[string]govaluate.ExpressionFunction{})
+	c.g, err = govaluate.NewEvaluableExpressionWithFunctions(x, internalFunctions)
 	if err != nil {
 		return
 	}
-	c.f = map[string]map[string][]string{}
+	c.f = map[string]map[string]Key{}
 	for _, v := range c.g.Vars() {
-		for _, e = range r.BasicEvents {
+		for i, e := range r.BasicEvents {
 			if l := len(e); l > 0 && v[:l] == e && v[l] == ':' && v[1+l] == ':' {
 				if _, ok := c.f[e]; !ok {
-					c.f[e] = map[string][]string{}
+					c.f[e] = map[string]Key{}
 				}
 				if _, ok := c.f[e][v[2+l:]]; !ok {
-					c.f[e][v[2+l:]] = strings.Split(v[2+l:], ".")
+					c.f[e][v[2+l:]] = Key{
+						e: i,
+						k: strings.Split(v[2+l:], "."),
+					}
 				}
 			}
 		}

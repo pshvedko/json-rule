@@ -43,12 +43,11 @@ func main() {
 	}
 	log.Print(c)
 
-	a := map[string]interface{}{"skud": j}
 	t := time.Now()
 	var v interface{}
 	var n time.Duration
 	for n < 1_000 {
-		v, err = c.Exec(a)
+		v, err = c.Exec(j)
 		if err != nil {
 			log.Fatal(err)
 		}
