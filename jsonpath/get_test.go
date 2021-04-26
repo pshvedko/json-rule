@@ -1,7 +1,10 @@
 package jsonpath
 
 import (
+	"encoding/json"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -120,4 +123,20 @@ func TestGet(t *testing.T) {
 			}
 		})
 	}
+}
+
+func ExampleGet() {
+	var j, v interface{}
+	err := json.NewDecoder(strings.NewReader(
+		`{ "a": { "b": [ { "c": 1 }, { "c": 2 }, { "c": 3 } ] } }`)).Decode(&j)
+	if err != nil {
+		return
+	}
+	v, err = Get(j, []string{"a", "b", "#", "c"})
+	if err != nil {
+		return
+	}
+	fmt.Println(v)
+	// Output:
+	// [1 2 3]
 }

@@ -5,6 +5,7 @@ import (
 	"strconv"
 )
 
+// Get looks up value in JSON specified by keys. Whole array can be specified by #
 func Get(j interface{}, k []string) (interface{}, error) {
 	if len(k) > 0 {
 		switch m := j.(type) {
