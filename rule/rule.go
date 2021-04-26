@@ -185,6 +185,7 @@ type Condition struct {
 	f map[string]map[string]Key
 }
 
+// Exec executes condition with objects in basic events order
 func (c Condition) Exec(j ...interface{}) (interface{}, error) {
 	return c.g.Eval(Getter(func(x string) (interface{}, error) {
 		if u := strings.SplitN(x, "::", 2); 2 == len(u) {
@@ -222,7 +223,8 @@ func (r Rule) Condition() (c Condition, err error) {
 		return
 	}
 	c.f = map[string]map[string]Key{}
-	for _, v := range c.g.Vars() {
+	m := 0
+	for n, v := range c.g.Vars() {
 		for i, e := range r.BasicEvents {
 			if l := len(e); l > 0 && v[:l] == e && v[l] == ':' && v[1+l] == ':' {
 				if _, ok := c.f[e]; !ok {
@@ -234,6 +236,12 @@ func (r Rule) Condition() (c Condition, err error) {
 						k: strings.Split(v[2+l:], "."),
 					}
 				}
+				if n != m {
+					err = os.ErrInvalid
+					return
+				}
+				m++
+				break
 			}
 		}
 	}

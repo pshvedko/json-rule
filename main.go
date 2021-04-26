@@ -43,15 +43,15 @@ func main() {
 	}
 	log.Print(c)
 
-	t := time.Now()
 	var v interface{}
-	var n time.Duration
-	for n < 1_000 {
+	var n int
+	t := time.Now()
+	for n < 1_000_00 {
 		v, err = c.Exec(j)
 		if err != nil {
 			log.Fatal(err)
 		}
 		n++
 	}
-	log.Print(time.Now().Sub(t)/n, v)
+	log.Print(v, time.Now().Sub(t)/time.Duration(n))
 }
