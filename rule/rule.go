@@ -2,12 +2,12 @@ package rule
 
 import (
 	"fmt"
-	"io"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/Knetic/govaluate"
-	"github.com/pshvedko/json-rule/path"
+	"github.com/pshvedko/json-rule/jsonpath"
 )
 
 type Replacer struct {
@@ -168,29 +168,28 @@ type Rule struct {
 	Weight           int        `json:"weight,omitempty"`
 }
 
-type Getter struct {
-	j map[string]interface{}
-	c Condition
-}
+type Getter func(x string) (interface{}, error)
 
 func (g Getter) Get(x string) (interface{}, error) {
-	if u := strings.SplitN(x, "::", 2); 2 == len(u) {
-		if f, ok := g.c.f[u[0]]; ok {
-			if f, ok := f[u[1]]; ok {
-				return f.Get(g.j[u[0]])
-			}
-		}
-	}
-	return nil, io.EOF
+	return g(x)
 }
 
 type Condition struct {
 	g *govaluate.EvaluableExpression
-	f map[string]map[string]path.Getter
+	f map[string]map[string][]string
 }
 
 func (c Condition) Exec(j map[string]interface{}) (interface{}, error) {
-	return c.g.Eval(Getter{j: j, c: c})
+	return c.g.Eval(Getter(func(x string) (interface{}, error) {
+		if u := strings.SplitN(x, "::", 2); 2 == len(u) {
+			if f, ok := c.f[u[0]]; ok {
+				if k, ok := f[u[1]]; ok {
+					return jsonpath.Get(j[u[0]], k)
+				}
+			}
+		}
+		return nil, os.ErrInvalid
+	}))
 }
 func (c Condition) String() string {
 	return c.g.String()
@@ -210,17 +209,16 @@ func (r Rule) Condition() (c Condition, err error) {
 	if err != nil {
 		return
 	}
-	c.f = map[string]map[string]path.Getter{}
+	c.f = map[string]map[string][]string{}
 	for _, v := range c.g.Vars() {
 		for _, e = range r.BasicEvents {
 			if l := len(e); l > 0 && v[:l] == e && v[l] == ':' && v[1+l] == ':' {
 				if _, ok := c.f[e]; !ok {
-					c.f[e] = map[string]path.Getter{}
+					c.f[e] = map[string][]string{}
 				}
-				if _, ok := c.f[e][v[2+l:]]; ok {
-					continue
+				if _, ok := c.f[e][v[2+l:]]; !ok {
+					c.f[e][v[2+l:]] = strings.Split(v[2+l:], ".")
 				}
-				c.f[e][v[2+l:]] = path.NewGetter(v[2+l:])
 			}
 		}
 	}

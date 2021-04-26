@@ -1,29 +1,9 @@
-package path
+package jsonpath
 
 import (
-	"errors"
+	"os"
 	"strconv"
-	"strings"
 )
-
-type GetterFunc func(from interface{}) (interface{}, error)
-
-func (f GetterFunc) Get(from interface{}) (interface{}, error) {
-	return f(from)
-}
-
-type Getter interface {
-	Get(from interface{}) (interface{}, error)
-}
-
-func NewGetter(path string) Getter {
-	keys := strings.Split(path, ".")
-	return GetterFunc(func(from interface{}) (interface{}, error) {
-		return Get(from, keys)
-	})
-}
-
-var ErrInvalidKey = errors.New("invalid key")
 
 func Get(j interface{}, k []string) (interface{}, error) {
 	if len(k) > 0 {
@@ -52,7 +32,7 @@ func Get(j interface{}, k []string) (interface{}, error) {
 			}
 			return Get(m[i], k[1:])
 		}
-		return nil, ErrInvalidKey
+		return nil, os.ErrInvalid
 	}
 	return j, nil
 }
