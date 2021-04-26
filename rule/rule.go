@@ -175,14 +175,14 @@ func (g Getter) Get(x string) (interface{}, error) {
 	return g(x)
 }
 
-type Key struct {
+type Path struct {
 	e int
 	k []string
 }
 
 type Condition struct {
 	g *govaluate.EvaluableExpression
-	f map[string]map[string]Key
+	f map[string]map[string]Path
 }
 
 // Exec executes condition with objects in basic events order
@@ -190,14 +190,17 @@ func (c Condition) Exec(j ...interface{}) (interface{}, error) {
 	return c.g.Eval(Getter(func(x string) (interface{}, error) {
 		if u := strings.SplitN(x, "::", 2); 2 == len(u) {
 			if f, ok := c.f[u[0]]; ok {
-				if k, ok := f[u[1]]; ok {
-					return jsonpath.Get(j[k.e], k.k)
+				if p, ok := f[u[1]]; ok {
+					if p.e < len(j) {
+						return jsonpath.Get(j[p.e], p.k)
+					}
 				}
 			}
 		}
 		return nil, os.ErrInvalid
 	}))
 }
+
 func (c Condition) String() string {
 	return c.g.String()
 }
@@ -222,16 +225,16 @@ func (r Rule) Condition() (c Condition, err error) {
 	if err != nil {
 		return
 	}
-	c.f = map[string]map[string]Key{}
+	c.f = map[string]map[string]Path{}
 	m := 0
 	for n, v := range c.g.Vars() {
 		for i, e := range r.BasicEvents {
 			if l := len(e); l > 0 && v[:l] == e && v[l] == ':' && v[1+l] == ':' {
 				if _, ok := c.f[e]; !ok {
-					c.f[e] = map[string]Key{}
+					c.f[e] = map[string]Path{}
 				}
 				if _, ok := c.f[e][v[2+l:]]; !ok {
-					c.f[e][v[2+l:]] = Key{
+					c.f[e][v[2+l:]] = Path{
 						e: i,
 						k: strings.Split(v[2+l:], "."),
 					}
