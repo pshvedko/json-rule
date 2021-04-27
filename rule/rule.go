@@ -3,7 +3,9 @@ package rule
 import (
 	"fmt"
 	"github.com/pshvedko/json-rule/jsonpath"
+	"io"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -40,6 +42,9 @@ func (r Quoter) Print(format string, a ...interface{}) (int, error) {
 type Builder struct {
 	strings.Builder
 	Group bool
+	Paths map[string][]string
+	Cache [][]string
+	Names []string
 }
 
 func (b *Builder) Print(format string, a ...interface{}) (int, error) {
@@ -50,6 +55,36 @@ func (b *Builder) Quoter() Quoter {
 	return Quoter{
 		Builder: b,
 	}
+}
+
+func (b *Builder) Contains(e string) bool {
+	for _, n := range b.Names {
+		if n == e {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *Builder) Variable(e, f string) string {
+	p := strings.Split(e, ".")
+	q := strings.Split(f, ".")
+	p = append(p, q...)
+	v := fmt.Sprint("x", b.Count(p))
+	b.Paths[v] = p
+	return v
+}
+
+func (b *Builder) Count(p []string) int {
+	var i int
+	for i < len(b.Cache) {
+		if reflect.DeepEqual(b.Cache[i], p) {
+			return i
+		}
+		i++
+	}
+	b.Cache = append(b.Cache, p)
+	return i
 }
 
 type Point struct {
@@ -87,7 +122,13 @@ func (o Operand) Print(b *Builder) (err error) {
 	if o.Value != "" {
 		_, err = b.Print("%s%s%s%s%s", p, q, o.Value, q, e)
 	} else {
-		_, err = b.Quoter().Print("%s%s.%s%s", p, o.Event, o.Field, e)
+		if !b.Contains(o.Event) {
+			return io.EOF
+		}
+		_, err = b.Print("%s%s%s", p, b.Variable(o.Event, o.Field), e)
+
+		//b.Paths[o.Event+"."+o.Field] = append([]string{o.Event}, strings.Split(o.Field, ".")...)
+		//_, err = b.Quoter().Print("%s%s.%s%s", p, o.Event, o.Field, e)
 	}
 	return
 }
@@ -135,14 +176,19 @@ func (o Operation) Print(b *Builder) (err error) {
 
 type Expression []Operation
 
-func (e Expression) Build() (string, error) {
-	var b Builder
+func (e Expression) Build(events []string) (string, map[string][]string, error) {
+	b := Builder{
+		Builder: strings.Builder{},
+		Group:   false,
+		Paths:   map[string][]string{},
+		Names:   events,
+	}
 	for _, o := range e {
 		if err := o.Print(&b); err != nil {
-			return "", nil
+			return "", nil, err
 		}
 	}
-	return b.String(), nil
+	return b.String(), b.Paths, nil
 }
 
 type Actions []Action
@@ -185,30 +231,14 @@ func (c Condition) Evaluate(j interface{}) (interface{}, error) {
 }
 
 func (r Rule) Condition() (Condition, error) {
-	x, err := r.Body.Expression.Build()
+	b, p, err := r.Body.Expression.Build(r.BasicEvents)
 	if err != nil {
 		return nil, err
 	}
 	var q *govaluate.EvaluableExpression
-	q, err = govaluate.NewEvaluableExpressionWithFunctions(x, internalFunctions)
+	q, err = govaluate.NewEvaluableExpressionWithFunctions(b, internalFunctions)
 	if err != nil {
 		return nil, err
-	}
-	p := map[string][]string{}
-	n := 0
-	for i, v := range q.Vars() {
-		for _, e := range r.BasicEvents {
-			if l := len(e); l > 0 && e == v[:l] && v[l] == '.' {
-				if _, ok := p[v]; !ok {
-					p[v] = strings.Split(v, ".")
-				}
-				n++
-				break
-			}
-		}
-		if i == n {
-			return nil, os.ErrInvalid
-		}
 	}
 	return func(j interface{}) (interface{}, error) {
 		return q.Eval(jsonpath.NewGetterWithPreparedPath(j, p))

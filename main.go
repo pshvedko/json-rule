@@ -46,7 +46,7 @@ func main() {
 	var n int
 	m := map[string]interface{}{"skud": j}
 	t := time.Now()
-	for n < 1_000_00 {
+	for n < 1_000 {
 		v, err = c.Evaluate(m)
 		if err != nil {
 			log.Fatal(err)
