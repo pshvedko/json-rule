@@ -1,8 +1,9 @@
-package jsonpath
+package jsonpath_test
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/pshvedko/json-rule/jsonpath"
 	"reflect"
 	"strings"
 	"testing"
@@ -113,7 +114,7 @@ func TestGet(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Get(tt.args.j, tt.args.k)
+			got, err := jsonpath.Get(tt.args.j, tt.args.k)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Get() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -128,13 +129,13 @@ func TestGet(t *testing.T) {
 func ExampleGet() {
 	var j, v interface{}
 	err := json.NewDecoder(strings.NewReader(
-		`{ "a": { "b": [ { "c": 1 }, { "c": 2 }, { "c": 3 } ] } }`)).Decode(&j)
+		`{ "a": { "b": [ { "c": 1 }, { "c": 2 }, { "c": 3, "x": true }, { "x": true } ] } }`)).Decode(&j)
 	if err != nil {
 		return
 	}
-	v, err = Get(j, []string{"a", "b", "#", "c"})
+	v, err = jsonpath.Get(j, []string{"a", "b", "#", "c"})
 	if err != nil {
-		return
+		fmt.Println(err)
 	}
 	fmt.Println(v)
 	// Output:

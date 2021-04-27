@@ -41,13 +41,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Print(c)
 
 	var v interface{}
 	var n int
+	m := map[string]interface{}{"skud": j}
 	t := time.Now()
 	for n < 1_000_00 {
-		v, err = c.Exec(j)
+		v, err = c.Evaluate(m)
 		if err != nil {
 			log.Fatal(err)
 		}

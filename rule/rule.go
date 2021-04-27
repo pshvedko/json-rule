@@ -2,12 +2,12 @@ package rule
 
 import (
 	"fmt"
+	"github.com/pshvedko/json-rule/jsonpath"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/Knetic/govaluate"
-	"github.com/pshvedko/json-rule/jsonpath"
 )
 
 type Quoter struct {
@@ -87,7 +87,7 @@ func (o Operand) Print(b *Builder) (err error) {
 	if o.Value != "" {
 		_, err = b.Print("%s%s%s%s%s", p, q, o.Value, q, e)
 	} else {
-		_, err = b.Quoter().Print("%s%s::%s%s", p, o.Event, o.Field, e)
+		_, err = b.Quoter().Print("%s%s.%s%s", p, o.Event, o.Field, e)
 	}
 	return
 }
@@ -169,84 +169,48 @@ type Rule struct {
 	Weight           int        `json:"weight,omitempty"`
 }
 
-type Getter func(x string) (interface{}, error)
-
-func (g Getter) Get(x string) (interface{}, error) {
-	return g(x)
-}
-
-type Path struct {
-	e int
-	k []string
-}
-
-type Condition struct {
-	g *govaluate.EvaluableExpression
-	f map[string]map[string]Path
-}
-
-// Exec executes condition with objects in basic events order
-func (c Condition) Exec(j ...interface{}) (interface{}, error) {
-	return c.g.Eval(Getter(func(x string) (interface{}, error) {
-		if u := strings.SplitN(x, "::", 2); 2 == len(u) {
-			if f, ok := c.f[u[0]]; ok {
-				if p, ok := f[u[1]]; ok {
-					if p.e < len(j) {
-						return jsonpath.Get(j[p.e], p.k)
-					}
-				}
-			}
-		}
-		return nil, os.ErrInvalid
-	}))
-}
-
-func (c Condition) String() string {
-	return c.g.String()
-}
-
-func (c Condition) Variables() []string {
-	return c.g.Vars()
-}
-
 var internalFunctions = map[string]govaluate.ExpressionFunction{
 	"int": func(a ...interface{}) (interface{}, error) {
 		return a[0], nil
 	},
 }
 
-func (r Rule) Condition() (c Condition, err error) {
-	var x string
-	x, err = r.Body.Expression.Build()
-	if err != nil {
-		return
+type Condition func(j interface{}) (interface{}, error)
+
+func (c Condition) Evaluate(j interface{}) (interface{}, error) {
+	if c != nil {
+		return c(j)
 	}
-	c.g, err = govaluate.NewEvaluableExpressionWithFunctions(x, internalFunctions)
+	return nil, os.ErrInvalid
+}
+
+func (r Rule) Condition() (Condition, error) {
+	x, err := r.Body.Expression.Build()
 	if err != nil {
-		return
+		return nil, err
 	}
-	c.f = map[string]map[string]Path{}
-	m := 0
-	for n, v := range c.g.Vars() {
-		for i, e := range r.BasicEvents {
-			if l := len(e); l > 0 && v[:l] == e && v[l] == ':' && v[1+l] == ':' {
-				if _, ok := c.f[e]; !ok {
-					c.f[e] = map[string]Path{}
+	var q *govaluate.EvaluableExpression
+	q, err = govaluate.NewEvaluableExpressionWithFunctions(x, internalFunctions)
+	if err != nil {
+		return nil, err
+	}
+	p := map[string][]string{}
+	n := 0
+	for i, v := range q.Vars() {
+		for _, e := range r.BasicEvents {
+			if l := len(e); l > 0 && e == v[:l] && v[l] == '.' {
+				if _, ok := p[v]; !ok {
+					p[v] = strings.Split(v, ".")
 				}
-				if _, ok := c.f[e][v[2+l:]]; !ok {
-					c.f[e][v[2+l:]] = Path{
-						e: i,
-						k: strings.Split(v[2+l:], "."),
-					}
-				}
-				if n != m {
-					err = os.ErrInvalid
-					return
-				}
-				m++
+				n++
 				break
 			}
 		}
+		if i == n {
+			return nil, os.ErrInvalid
+		}
 	}
-	return
+	return func(j interface{}) (interface{}, error) {
+		return q.Eval(jsonpath.NewGetterWithPreparedPath(j, p))
+	}, nil
 }
