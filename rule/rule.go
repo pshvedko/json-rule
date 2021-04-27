@@ -126,9 +126,6 @@ func (o Operand) Print(b *Builder) (err error) {
 			return io.EOF
 		}
 		_, err = b.Print("%s%s%s", p, b.Variable(o.Event, o.Field), e)
-
-		//b.Paths[o.Event+"."+o.Field] = append([]string{o.Event}, strings.Split(o.Field, ".")...)
-		//_, err = b.Quoter().Print("%s%s.%s%s", p, o.Event, o.Field, e)
 	}
 	return
 }
