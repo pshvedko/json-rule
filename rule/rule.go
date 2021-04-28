@@ -16,29 +16,6 @@ type Quoter struct {
 	*Builder
 }
 
-func (r Quoter) Write(p []byte) (n int, err error) {
-	for _, b := range p {
-		switch b {
-		case '.', '#', ':':
-			err = r.WriteByte('\\')
-			if err != nil {
-				return
-			}
-			n++
-		}
-		err = r.WriteByte(b)
-		if err != nil {
-			return
-		}
-		n++
-	}
-	return
-}
-
-func (r Quoter) Print(format string, a ...interface{}) (int, error) {
-	return fmt.Fprintf(r, format, a...)
-}
-
 type Builder struct {
 	strings.Builder
 	Group bool
