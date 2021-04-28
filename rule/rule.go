@@ -12,10 +12,6 @@ import (
 	"github.com/Knetic/govaluate"
 )
 
-type Quoter struct {
-	*Builder
-}
-
 type Builder struct {
 	strings.Builder
 	Group bool
@@ -26,12 +22,6 @@ type Builder struct {
 
 func (b *Builder) Print(format string, a ...interface{}) (int, error) {
 	return fmt.Fprintf(b, format, a...)
-}
-
-func (b *Builder) Quoter() Quoter {
-	return Quoter{
-		Builder: b,
-	}
 }
 
 func (b *Builder) Contains(e string) bool {
